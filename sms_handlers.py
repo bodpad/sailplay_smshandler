@@ -1,10 +1,12 @@
 import requests
-import json
 from abc import ABCMeta, abstractmethod
 from utils import LoggingMixin
 
 
 class ABC_SMSHandler(metaclass=ABCMeta):
+    """
+    Абстрактный базовый класс для реализации смс хэндлеров
+    """
     logger = LoggingMixin()
 
     @property
@@ -16,24 +18,23 @@ class ABC_SMSHandler(metaclass=ABCMeta):
         """
         pass
 
-    @abstractmethod
     def __init__(self, login, password):
-        pass
+        self.login = login
+        self.password = password
 
     @abstractmethod
     def send(self, data):
         """
         Метод отправки sms сообщений посредством api гейта.
         Должен быть расширен (переопределен и вызван) в каждом дочернем классе.
-        Возвращает True, если sms гейт вернул статус 'ok' или False, если 'error'
         """
-        response = requests.post(self.API_URL, data=data)
+        response = requests.post(self.API_URL, data=data, json=True)
 
         if response.status_code == 401:
             # Что-то делать, если гейт вернул 401 Unauthorized
             raise NotImplementedError
 
-        response_data = json.loads(response.text)
+        response_data = response.json()
 
         # Логгирование отправки sms сообщений.
         status = response_data.get('status')
@@ -42,10 +43,10 @@ class ABC_SMSHandler(metaclass=ABCMeta):
             raise ValueError('Could not find "status" value')
         elif status == 'ok':
             self.logger.access(response_data)
-            return True
         elif status == 'error':
             self.logger.error(response_data)
-            return False
+
+        return response_data
 
 
 class SMSRU_SMSHandler(ABC_SMSHandler):
@@ -54,10 +55,6 @@ class SMSRU_SMSHandler(ABC_SMSHandler):
     http://sms.ru/
     """
     API_URL = 'http://smsc.ru/some­api/message/'
-
-    def __init__(self, login, password):
-        self.login = login
-        self.password = password
 
     def send(self, to, text):
         data = {
@@ -76,14 +73,16 @@ class SMSTRAFFIC_SMSHandler(ABC_SMSHandler):
     """
     API_URL = 'http://smstraffic.ru/super­api/message/'
 
-    def __init__(self, token, password):
+    def __init__(self, token, password, something_else):
         self.token = token
         self.password = password
+        self.something_else = something_else
 
     def send(self, to, text):
         data = {
             'token': self.token,
             'password': self.password,
+            'something_else': self.something_else,
             'to': to,
             'text': text
         }
@@ -93,13 +92,8 @@ class SMSTRAFFIC_SMSHandler(ABC_SMSHandler):
 class KIDSTIC_SMSHandler(ABC_SMSHandler):
     """
     Тестовый sms гейт.
-    Разработан мной для тестирования работоспособности кода.
     """
     API_URL = 'https://www.kidstic.ru/api.php'
-
-    def __init__(self, login, password):
-        self.login = login
-        self.password = password
 
     def send(self, to, text):
         data = {
